@@ -20,16 +20,25 @@ public class AgentOrchestrationService : IAgentOrchestrationService
 
     public AgentOrchestrationService(IConfiguration configuration)
     {
-        var apiKey = configuration["Groq:ApiKey"]
-            ?? throw new InvalidOperationException("Groq:ApiKey is not configured");
-        var model = configuration["Groq:Model"] ?? "llama-3.3-70b-versatile";
+        var apiKey = configuration["LLM:ApiKey"]
+            ?? throw new InvalidOperationException("LLM:ApiKey is not configured");
+        var model = configuration["LLM:Model"] ?? "gpt-4o";
+        var endpoint = configuration["LLM:Endpoint"];
 
-        var options = new OpenAIClientOptions
+        OpenAIClient client;
+        if (!string.IsNullOrEmpty(endpoint))
         {
-            Endpoint = new Uri("https://api.groq.com/openai/v1")
-        };
+            var options = new OpenAIClientOptions
+            {
+                Endpoint = new Uri(endpoint)
+            };
+            client = new OpenAIClient(new ApiKeyCredential(apiKey), options);
+        }
+        else
+        {
+            client = new OpenAIClient(new ApiKeyCredential(apiKey));
+        }
 
-        var client = new OpenAIClient(new ApiKeyCredential(apiKey), options);
         var chatClient = client.GetChatClient(model);
 
         _writerInstructions = $"""
