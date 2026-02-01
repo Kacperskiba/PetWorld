@@ -8,8 +8,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=Server=mysql;Port=3306;Database=petworld;User=petworld;Password=petworld123;
-      - Groq__ApiKey=${GROQ_API_KEY}
-      - Groq__Model=${GROQ_MODEL:-llama-3.3-70b-versatile}
     depends_on:
       mysql:
         condition: service_healthy
