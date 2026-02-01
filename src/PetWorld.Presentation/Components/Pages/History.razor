@@ -1,0 +1,297 @@
+@page "/history"
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject IChatService ChatService
+@rendermode InteractiveServer
+
+<PageTitle>Historia rozmow - PetWorld</PageTitle>
+
+<div class="history-container">
+    <div class="history-header">
+        <h1>Historia rozmow</h1>
+        <p>Przegladaj poprzednie rozmowy z asystentem</p>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="loading-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <p>Ladowanie historii...</p>
+        </div>
+    }
+    else if (historyProvider != null && totalItemCount > 0)
+    {
+        <div class="history-table-wrapper">
+            <QuickGrid ItemsProvider="historyProvider" Pagination="pagination" Class="history-grid">
+                <PropertyColumn Property="@(x => x.Date)" Title="Data" Format="dd.MM.yyyy HH:mm" Sortable="true" />
+                <TemplateColumn Title="Pytanie" Sortable="true" SortBy="@(GridSort<ChatHistoryItemDto>.ByAscending(x => x.Question))">
+                    <div class="history-item-question" title="@context.Question">
+                        @TruncateText(context.Question, 80)
+                    </div>
+                </TemplateColumn>
+                <TemplateColumn Title="Odpowiedz" Sortable="true" SortBy="@(GridSort<ChatHistoryItemDto>.ByAscending(x => x.Answer))">
+                    <div class="history-item-answer" title="@context.Answer">
+                        @TruncateText(context.Answer, 150)
+                    </div>
+                </TemplateColumn>
+                <TemplateColumn Title="Iteracje" Sortable="true" SortBy="@(GridSort<ChatHistoryItemDto>.ByAscending(x => x.IterationCount))">
+                    <span class="badge @GetIterationBadgeClass(context.IterationCount)">
+                        @context.IterationCount
+                    </span>
+                </TemplateColumn>
+            </QuickGrid>
+        </div>
+
+        <div class="pagination-wrapper">
+            <Paginator State="pagination" />
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <div class="empty-state-icon">💬</div>
+            <h3>Brak historii rozmow</h3>
+            <p>Rozpocznij rozmowe z asystentem, a Twoja historia pojawi sie tutaj.</p>
+            <a href="/">Rozpocznij czat</a>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+</div>
+
+<style>
+    .history-container {
+        padding: 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+        min-height: 100vh;
+    }
+
+    .history-header {
+        margin-bottom: 2rem;
+    }
+
+    .history-header h1 {
+        font-size: 1.75rem;
+        margin-bottom: 0.5rem;
+        background: var(--accent-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .history-header p {
+        color: var(--text-secondary);
+        margin: 0;
+    }
+
+    .loading-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 4rem;
+        color: var(--text-secondary);
+    }
+
+    .loading-state p {
+        margin-top: 1rem;
+    }
+
+    .history-table-wrapper {
+        background: var(--bg-secondary);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        border: 1px solid var(--border-color);
+    }
+
+    ::deep .history-grid {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    ::deep .history-grid th {
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+        padding: 1rem 1.25rem;
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: background 0.2s ease;
+    }
+
+    ::deep .history-grid th:hover {
+        background: #1e2a4a;
+    }
+
+    ::deep .history-grid th[aria-sort]::after {
+        margin-left: 0.5rem;
+        opacity: 0.7;
+    }
+
+    ::deep .history-grid th[aria-sort="ascending"]::after {
+        content: " ↑";
+    }
+
+    ::deep .history-grid th[aria-sort="descending"]::after {
+        content: " ↓";
+    }
+
+    ::deep .history-grid td {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+        vertical-align: top;
+    }
+
+    ::deep .history-grid tr:last-child td {
+        border-bottom: none;
+    }
+
+    ::deep .history-grid tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .history-item-question {
+        font-weight: 500;
+        color: var(--text-primary);
+        line-height: 1.5;
+    }
+
+    .history-item-answer {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    .pagination-wrapper {
+        display: flex;
+        justify-content: center;
+        margin-top: 1.5rem;
+    }
+
+    ::deep .pagination-wrapper nav {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    ::deep .pagination-wrapper button {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        padding: 0.5rem 1rem;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.875rem;
+    }
+
+    ::deep .pagination-wrapper button:hover:not(:disabled) {
+        background: var(--bg-tertiary);
+        border-color: var(--accent-primary);
+    }
+
+    ::deep .pagination-wrapper button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    ::deep .pagination-wrapper span {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        padding: 0 0.5rem;
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 24px;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-success {
+        background: var(--success);
+        color: white;
+    }
+
+    .badge-warning {
+        background: var(--warning);
+        color: #1a1a2e;
+    }
+
+    .badge-danger {
+        background: var(--danger);
+        color: white;
+    }
+</style>
+
+@code {
+    private GridItemsProvider<ChatHistoryItemDto>? historyProvider;
+    private PaginationState pagination = new() { ItemsPerPage = 15 };
+    private bool isLoading = true;
+    private string? errorMessage;
+    private int totalItemCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var initialResult = await ChatService.GetHistoryPagedAsync(1, 1, null, false);
+            totalItemCount = initialResult.TotalCount;
+
+            if (totalItemCount > 0)
+            {
+                historyProvider = async request =>
+                {
+                    var page = (request.StartIndex / pagination.ItemsPerPage) + 1;
+                    var sortProperties = request.GetSortByProperties().ToList();
+                    var sortColumn = sortProperties.Count > 0 ? sortProperties[0].PropertyName : null;
+                    var ascending = sortProperties.Count > 0 && sortProperties[0].Direction == SortDirection.Ascending;
+
+                    var result = await ChatService.GetHistoryPagedAsync(page, pagination.ItemsPerPage, sortColumn, ascending);
+
+                    return GridItemsProviderResult.From(result.Items.ToList(), result.TotalCount);
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Wystapil blad: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string TruncateText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+            return text;
+        return text.Substring(0, maxLength) + "...";
+    }
+
+    private string GetIterationBadgeClass(int iterations) => iterations switch
+    {
+        1 => "badge-success",
+        2 => "badge-warning",
+        _ => "badge-danger"
+    };
+}

@@ -1,0 +1,243 @@
+@page "/"
+@inject IChatService ChatService
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<PageTitle>PetWorld - Asystent dla Twojego pupila</PageTitle>
+
+<div class="chat-container">
+    @if (!messages.Any())
+    {
+        <div class="chat-header">
+            <h1>Witaj w PetWorld</h1>
+            <p>Jestem Twoim asystentem. Pomoge Ci wybrac najlepsze produkty dla Twojego zwierzaka.</p>
+        </div>
+
+        <div class="chat-messages">
+            <div class="quick-actions-center">
+                <p class="quick-actions-label">Przykladowe pytania:</p>
+                <div class="quick-actions">
+                    @foreach (var q in sampleQuestions)
+                    {
+                        <button class="quick-action" @onclick="() => SetQuestion(q)">
+                            @q
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="chat-messages" @ref="messagesContainer">
+            @foreach (var msg in messages)
+            {
+                <div class="message @msg.Role">
+                    <div class="message-avatar">
+                        @if (msg.Role == "user")
+                        {
+                            <span>U</span>
+                        }
+                        else
+                        {
+                            <span>AI</span>
+                        }
+                    </div>
+                    <div class="message-content">
+                        @msg.Content
+                    </div>
+                </div>
+
+                @if (msg.Products?.Any() == true)
+                {
+                    <div class="products-section">
+                        <div class="products-label">Rekomendowane produkty:</div>
+                        <div class="products-grid">
+                            @foreach (var product in msg.Products)
+                            {
+                                <div class="product-card">
+                                    <div class="product-badges">
+                                        <span class="badge badge-secondary">@product.Category</span>
+                                        <span class="badge badge-info">@product.TargetPet</span>
+                                    </div>
+                                    <h4>@product.Name</h4>
+                                    <p>@product.Description</p>
+                                    <div class="price">@product.Price.ToString("C", new System.Globalization.CultureInfo("pl-PL"))</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+
+            @if (isLoading)
+            {
+                <div class="message assistant">
+                    <div class="message-avatar">
+                        <span>AI</span>
+                    </div>
+                    <div class="message-content">
+                        <div class="loading-dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+
+    <div class="chat-input-area">
+        <div class="chat-input-wrapper">
+            <textarea class="chat-input"
+                      placeholder="Napisz wiadomosc..."
+                      @bind="question"
+                      @bind:event="oninput"
+                      @onkeydown="HandleKeyDown"
+                      rows="1"></textarea>
+            <button class="send-button" @onclick="SendQuestion" disabled="@(isLoading || string.IsNullOrWhiteSpace(question))">
+                @if (isLoading)
+                {
+                    <div class="spinner"></div>
+                }
+                else
+                {
+                    <span>Wyslij</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .chat-container {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .quick-actions-center {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        padding: 2rem;
+    }
+
+    .quick-actions-label {
+        color: var(--text-secondary);
+        margin-bottom: 1rem;
+        font-size: 0.95rem;
+    }
+
+    .quick-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        justify-content: center;
+        max-width: 600px;
+    }
+
+    .products-section {
+        margin-left: 48px;
+        margin-top: 0.5rem;
+        animation: fadeIn 0.3s ease;
+    }
+
+    .products-label {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .product-badges {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+</style>
+
+@code {
+    private string question = string.Empty;
+    private List<ChatMessage> messages = new();
+    private bool isLoading;
+    private string? errorMessage;
+    private ElementReference messagesContainer;
+
+    private readonly List<string> sampleQuestions = new()
+    {
+        "Jakie jedzenie polecacie dla kota?",
+        "Szukam zabawki dla psa",
+        "Co potrzebuje do akwarium?",
+        "Mam chomika, co polecacie?",
+        "Potrzebuje drapak dla kota"
+    };
+
+    private async Task SendQuestion()
+    {
+        if (string.IsNullOrWhiteSpace(question) || isLoading)
+            return;
+
+        var userQuestion = question;
+        question = string.Empty;
+        errorMessage = null;
+
+        messages.Add(new ChatMessage("user", userQuestion));
+        isLoading = true;
+        StateHasChanged();
+
+        await ScrollToBottom();
+
+        try
+        {
+            var response = await ChatService.ProcessQuestionAsync(new ChatRequestDto(userQuestion));
+            messages.Add(new ChatMessage("assistant", response.Response, response.RecommendedProducts.ToList()));
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Wystapil blad: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+            await ScrollToBottom();
+        }
+    }
+
+    private void SetQuestion(string text)
+    {
+        question = text;
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendQuestion();
+        }
+    }
+
+    private async Task ScrollToBottom()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("eval", "document.querySelector('.chat-messages')?.scrollTo(0, document.querySelector('.chat-messages')?.scrollHeight)");
+        }
+        catch
+        {
+            // Ignore JS errors
+        }
+    }
+
+    private record ChatMessage(string Role, string Content, List<ProductDto>? Products = null);
+}

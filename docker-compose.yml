@@ -1,0 +1,44 @@
+services:
+  petworld-web:
+    build:
+      context: .
+      dockerfile: src/PetWorld.Presentation/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Server=mysql;Port=3306;Database=petworld;User=petworld;Password=petworld123;
+      - Groq__ApiKey=${GROQ_API_KEY}
+      - Groq__Model=${GROQ_MODEL:-llama-3.3-70b-versatile}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - petworld-network
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: petworld
+      MYSQL_USER: petworld
+      MYSQL_PASSWORD: petworld123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - petworld-network
+
+volumes:
+  mysql-data:
+
+networks:
+  petworld-network:
+    driver: bridge
